@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+gml_parser = "0.1.1"
+mt19937 = "2.0.1"
+rand_core = "0.6.4"
