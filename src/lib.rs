@@ -1,4 +1,5 @@
 use gml_parser::{GMLObject, Graph};
+use indexed_list::IndexedList;
 use mt19937::MT19937;
 use parameters::Parameters;
 use rand_core::SeedableRng;
@@ -7,6 +8,7 @@ use std::fs;
 use std::path::Path;
 use std::time;
 
+mod indexed_list;
 pub mod parameters;
 
 type Groups = u64; // group assignment bits
@@ -20,8 +22,8 @@ pub struct HierarchicalModel {
     num_groups: u32,
     groups: Vec<Groups>, // group assignments for each node
 
-    nodes_in: Vec<Vec<i32>>,  // ??
-    nodes_out: Vec<Vec<i32>>, // ??
+    nodes_in: IndexedList<i32>,  // ??
+    nodes_out: IndexedList<i32>, // ??
 
     group_size: Vec<usize>,
     hcg_edges: Vec<usize>, // number of edges in each group
@@ -50,8 +52,8 @@ impl HierarchicalModel {
             rng: MT19937::seed_from_u64(time::UNIX_EPOCH.elapsed().unwrap().as_secs()),
             network,
             //todo: not sure what nodes_in and nodes_out do..
-            nodes_in: vec![],
-            nodes_out: vec![],
+            nodes_in: IndexedList::new(),
+            nodes_out: IndexedList::new(),
         }
     }
 
