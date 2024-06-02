@@ -359,10 +359,7 @@ impl HierarchicalModel {
             let num_nodes = self.network.nodes.len();
             match m {
                 Move::RemoveNodeFromGroup {
-                    group,
-                    node,
-                    idx,
-                    ..
+                    group, node, idx, ..
                 } => {
                     // TODO: can this be unified with HierarchicalModel::add_node_to_group_by_idx?
                     self.group_size[group] += 1;
@@ -378,10 +375,7 @@ impl HierarchicalModel {
                     self.remove_group(group);
                 }
                 Move::AddNodeToGroup {
-                    group,
-                    node,
-                    idx,
-                    ..
+                    group, node, idx, ..
                 } => {
                     // TODO: can this be unified with HierarchicalModel::remove_node_from_group_by_idx?
                     self.group_size[group] -= 1;
