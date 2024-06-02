@@ -5,13 +5,36 @@ use parameters::Parameters;
 use rand::{Rng, SeedableRng};
 use std::error::Error;
 use std::fs;
+use std::iter;
 use std::path::Path;
 use std::time;
 
 mod indexed_list;
+mod math;
 pub mod parameters;
 
 type Groups = u64; // group assignment bits
+
+enum Move {
+    AddGroup {
+        group: usize,
+    },
+    RemoveGroup {
+        group: usize,
+    },
+    RemoveNodeFromGroup {
+        group: usize,
+        node: usize,
+        idx: usize,
+        old_state: u64,
+    },
+    AddNodeToGroup {
+        group: usize,
+        node: usize,
+        idx: usize,
+        old_state: u64,
+    },
+}
 
 pub struct HierarchicalModel {
     rng: MT19937,
@@ -48,6 +71,7 @@ impl HierarchicalModel {
     fn new(network: Graph, max_groups: u32) -> Self {
         // initialize a core-periphery structure with two groups, all nodes in group 0 only.
         assert!(max_groups <= 64);
+        math::init();
         Self {
             max_groups,
             num_groups: 2,
@@ -87,7 +111,7 @@ impl HierarchicalModel {
     }
 
     /// Highest Common Group
-    fn hcg(&self, u: i64, v: i64) -> usize {
+    fn hcg(&self, u: i32, v: i32) -> usize {
         let group_mask = (1u64 << self.num_groups) - 1;
         let masked_u = self.groups[u as usize] & group_mask;
         let masked_v = self.groups[v as usize] & group_mask;
@@ -101,6 +125,23 @@ impl HierarchicalModel {
         let common_bits = common_bits | (common_bits >> 32u64);
 
         (63u64 - ((common_bits - (common_bits >> 1u64)).leading_zeros() as u64)) as usize
+    }
+
+    ///
+    fn hcg_node(&self, old_state: u64, u: i32) -> usize {
+        let group_mask = (1u64 << self.num_groups) - 1;
+        let masked_u = old_state & group_mask;
+        let masked_v = self.groups[u as usize] & group_mask;
+
+        let common_bits = masked_u & masked_v;
+        let common_bits = common_bits | (common_bits >> 1u64);
+        let common_bits = common_bits | (common_bits >> 2u64);
+        let common_bits = common_bits | (common_bits >> 4u64);
+        let common_bits = common_bits | (common_bits >> 8u64);
+        let common_bits = common_bits | (common_bits >> 16u64);
+        let common_bits = common_bits | (common_bits >> 32u64);
+
+        (63u64 - (common_bits - (common_bits >> 1u64)).leading_zeros() as u64) as usize
     }
 
     fn init_groups(&mut self, groups: Vec<Groups>, num_groups: u32) {
@@ -131,7 +172,7 @@ impl HierarchicalModel {
         self.hcg_edges = vec![0; self.num_groups as usize];
         for &Edge { source, target, .. } in self.network.edges.iter() {
             if source < target {
-                let hcg = self.hcg(source, target);
+                let hcg = self.hcg(source as i32, target as i32);
                 self.hcg_edges[hcg] += 1;
             }
         }
@@ -141,9 +182,239 @@ impl HierarchicalModel {
         self.hcg_pairs = vec![0; self.num_groups as usize];
         for source in self.network.nodes.iter() {
             for target in self.network.nodes.iter() {
-                let hcg = self.hcg(source.id, target.id);
+                let hcg = self.hcg(source.id as i32, target.id as i32);
                 self.hcg_pairs[hcg] += 1;
             }
         }
+
+        self.log_like = self.calc_loglike();
     }
+
+    fn add_group(&mut self, group: usize) -> Move {
+        let num_nodes = self.network.nodes.len();
+        self.nodes_in.insert_row(group, &vec![-1; num_nodes]);
+        // TODO: avoid .collect
+        self.nodes_out
+            .insert_row(group, &(0..num_nodes as i32).collect::<Vec<_>>());
+        self.group_size.insert(group, 0);
+        self.hcg_edges.insert(group, 0);
+        self.hcg_pairs.insert(group, 0);
+        self.groups = self
+            .groups
+            .iter()
+            .map(|&u| insert_zero_at(u, group, self.num_groups))
+            .collect();
+        self.num_groups += 1;
+
+        Move::AddGroup { group }
+    }
+
+    fn remove_group(&mut self, group: usize) -> Move {
+        self.groups = self
+            .groups
+            .iter()
+            .map(|&u| remove_bit_at(u, group, self.num_groups))
+            .collect();
+        self.nodes_in.remove_row(group);
+        self.nodes_out.remove_row(group);
+        self.hcg_edges.remove(group);
+        self.hcg_pairs.remove(group);
+        self.group_size.remove(group);
+        self.num_groups -= 1;
+
+        Move::RemoveGroup { group }
+    }
+
+    fn remove_node_from_group_by_idx(&mut self, group: usize, idx: usize) -> Move {
+        let n_out = self.network.nodes.len() - self.group_size[group];
+
+        let node = self.nodes_in[(idx, group)] as usize;
+        self.nodes_in[(idx, group)] = self.nodes_in[(self.group_size[group] - 1, group)];
+        self.nodes_out[(n_out, group)] = node as i32;
+        let old_state = self.groups[node];
+        self.groups[node] -= 1u64 << group;
+        self.group_size[group] -= 1;
+
+        Move::RemoveNodeFromGroup {
+            group,
+            node,
+            idx,
+            old_state,
+        }
+    }
+
+    fn add_node_to_group_by_idx(&mut self, group: usize, idx: usize) -> Move {
+        let n_out = self.network.nodes.len() - self.group_size[group];
+
+        let node = self.nodes_out[(idx, group)] as usize;
+        self.nodes_out[(idx, group)] = self.nodes_out[(n_out - 1, group)];
+        self.nodes_in[(self.group_size[group], group)] = node as i32;
+        let old_state = self.groups[node];
+        self.groups[node] += 1u64 << group;
+        self.group_size[group] += 1;
+
+        Move::AddNodeToGroup {
+            group,
+            node,
+            idx,
+            old_state,
+        }
+    }
+
+    fn uniform_groupsize(&mut self) -> Option<Move> {
+        let num_nodes = self.network.nodes.len();
+        let p_type2 = 1f64 / (2 * self.num_groups as usize * (num_nodes + 1)) as f64;
+        if self.rng.gen_bool(p_type2) {
+            // adds empty group or does nothing if number of groups is equal to maximum number of groups
+            if self.num_groups == self.max_groups {
+                return None;
+            }
+            // add empty group
+            let rand_group = self.rng.gen_range(1..=self.num_groups as usize);
+            return Some(self.add_group(rand_group));
+        } else {
+            if self.num_groups == 1 {
+                // if only the group of all nodes is left, do nothing
+                return None;
+            }
+            let rand_group = self.rng.gen_range(1..self.num_groups as usize);
+            if self.rng.gen_bool(0.5) {
+                // remove a node
+                if self.group_size[rand_group] == 0 {
+                    // if empty, remove group entirely
+                    return Some(self.remove_group(rand_group));
+                }
+                let rand_idx = self.rng.gen_range(0..self.group_size[rand_group]);
+                return Some(self.remove_node_from_group_by_idx(rand_group, rand_idx));
+            } else {
+                // add a node
+                if self.group_size[rand_group] == num_nodes {
+                    // if group is already full, do nothing
+                    return None;
+                }
+                let n_out = self.network.nodes.len() - self.group_size[rand_group];
+                let rand_idx = self.rng.gen_range(0..n_out);
+                return Some(self.add_node_to_group_by_idx(rand_group, rand_idx));
+            }
+        }
+    }
+
+    fn update_hcg_props(&mut self, u: i32, old_state: u64) {
+        for v in 0..self.network.nodes.len() as i32 {
+            if v == u {
+                continue;
+            }
+            let new = self.hcg(u, v);
+            let old = self.hcg_node(old_state, v);
+            self.hcg_pairs[old] -= 1;
+            self.hcg_pairs[new] += 1;
+        }
+        for &Edge { source, target, .. } in self.network.edges.iter() {
+            // TODO: use different graph lib with more efficient neighbour list
+            if !((source == u as i64) ^ (target == u as i64)) {
+                continue;
+            }
+            let v = if source == u as i64 { target } else { source } as i32;
+            let new = self.hcg(u, v);
+            let old = self.hcg_node(old_state, v);
+            self.hcg_edges[old] -= 1;
+            self.hcg_edges[new] += 1;
+        }
+    }
+
+    fn calc_loglike(&self) -> f64 {
+        iter::zip(&self.hcg_edges, &self.hcg_pairs)
+            .map(|(&e, &p)| math::ln_fact(e) + math::ln_fact(p - e) - math::ln_fact(p + 1))
+            .sum()
+    }
+
+    pub fn get_groups(&mut self) {
+        let old_hcg_edges = self.hcg_edges.clone();
+        let old_hcg_pairs = self.hcg_pairs.clone();
+
+        let Some(m) = self.uniform_groupsize() else {
+            return;
+        };
+
+        let new_loglike = match m {
+            // adding/removing empty groups does not affect log likelihood
+            Move::AddGroup { .. } | Move::RemoveGroup { .. } => self.log_like,
+            Move::AddNodeToGroup {
+                node, old_state, ..
+            }
+            | Move::RemoveNodeFromGroup {
+                node, old_state, ..
+            } => {
+                self.update_hcg_props(node as i32, old_state);
+                self.calc_loglike()
+            }
+        };
+
+        let alpha = f64::exp(new_loglike - self.log_like); // acceptance probability
+        if self.rng.gen_bool(alpha) {
+            // accept move
+            self.log_like = new_loglike
+        } else {
+            // revert move
+            let num_nodes = self.network.nodes.len();
+            match m {
+                Move::RemoveNodeFromGroup {
+                    group,
+                    node,
+                    idx,
+                    ..
+                } => {
+                    // TODO: can this be unified with HierarchicalModel::add_node_to_group_by_idx?
+                    self.group_size[group] += 1;
+                    let n_out = num_nodes - self.group_size[group];
+                    self.nodes_out[(n_out, group)] = -1;
+                    self.nodes_in[(idx, group)] = node as i32;
+                    self.groups[node] += 1u64 << group;
+                }
+                Move::RemoveGroup { group } => {
+                    self.add_group(group);
+                }
+                Move::AddGroup { group } => {
+                    self.remove_group(group);
+                }
+                Move::AddNodeToGroup {
+                    group,
+                    node,
+                    idx,
+                    ..
+                } => {
+                    // TODO: can this be unified with HierarchicalModel::remove_node_from_group_by_idx?
+                    self.group_size[group] -= 1;
+                    self.nodes_in[(self.group_size[group], group)] = -1;
+                    self.nodes_out[(idx, group)] = node as i32;
+                    self.groups[node] -= 1u64 << group;
+                }
+            }
+            self.hcg_edges = old_hcg_edges[..self.num_groups as usize].to_owned();
+            self.hcg_pairs = old_hcg_pairs[..self.num_groups as usize].to_owned();
+        }
+    }
+}
+
+#[inline]
+fn insert_zero_at(val: u64, pos: usize, num_groups: u32) -> u64 {
+    let group_mask = (1u64 << num_groups) - 1;
+    let select_mask = (group_mask << pos) & group_mask;
+
+    let left = val & select_mask;
+    let right = val & (!select_mask);
+
+    (left << 1) | right
+}
+
+#[inline]
+fn remove_bit_at(val: u64, pos: usize, num_groups: u32) -> u64 {
+    let group_mask = (1u64 << num_groups) - 1;
+    let upper_mask = (group_mask << (pos + 1)) & group_mask;
+    let lower_mask = (group_mask >> (num_groups as usize - pos)) & group_mask;
+
+    let upper = val & upper_mask;
+    let lower = val & lower_mask;
+
+    (upper >> 1) | lower
 }
