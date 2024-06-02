@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::env;
 use std::io::Read;
 use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 #[derive(Debug)]
@@ -61,5 +61,14 @@ impl Parameters {
                 PathBuf::from,
             ),
         })
+    }
+    /// prepend base to relative paths
+    pub fn resolve_paths(self, base: &Path) -> Parameters {
+        let resolve = |p: PathBuf| if p.is_absolute() { p } else { base.join(p) };
+        Self {
+            gml_path: resolve(self.gml_path),
+            save_directory: resolve(self.save_directory),
+            ..self
+        }
     }
 }
