@@ -74,14 +74,14 @@ impl HierarchicalModel {
         );
         if let Some(groups) = &params.initial_group_config {
             println!("assigning random groups to nodes");
-            this.init_groups(groups.clone());
+            this.init_groups(groups.clone(), params.initial_num_groups);
         } else {
-            let max = 1u64 << (this.num_groups - 1);
+            let max = 1u64 << (params.initial_num_groups - 1);
             let groups = (0..this.network.nodes.len())
                 .map(|_| (this.rng.gen_range(0..max) << 1) + 1)
                 .collect();
             println!("assigning user specified groups to nodes");
-            this.init_groups(groups);
+            this.init_groups(groups, params.initial_num_groups);
         }
         Ok(this)
     }
@@ -103,8 +103,9 @@ impl HierarchicalModel {
         (63u64 - ((common_bits - (common_bits >> 1u64)).leading_zeros() as u64)) as usize
     }
 
-    fn init_groups(&mut self, groups: Vec<Groups>) {
+    fn init_groups(&mut self, groups: Vec<Groups>, num_groups: u32) {
         self.groups = groups;
+        self.num_groups = num_groups;
 
         // hierarchical_model::set_nodes_in_out()
         let group_matrix = to_group_matrix(&self.groups, self.num_groups);
@@ -127,6 +128,7 @@ impl HierarchicalModel {
         }
         // void hierarchical_model::set_hcg_edges()
         // FIXME: node ids might not correspond to positions
+        self.hcg_edges = vec![0; self.num_groups as usize];
         for &Edge { source, target, .. } in self.network.edges.iter() {
             if source < target {
                 let hcg = self.hcg(source, target);
@@ -136,6 +138,7 @@ impl HierarchicalModel {
 
         // void hierarchical_model::set_hcg_pairs()
         // FIXME: node ids might not correspond to positions
+        self.hcg_pairs = vec![0; self.num_groups as usize];
         for source in self.network.nodes.iter() {
             for target in self.network.nodes.iter() {
                 let hcg = self.hcg(source.id, target.id);
