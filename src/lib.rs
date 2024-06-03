@@ -174,10 +174,8 @@ impl HierarchicalModel {
         // FIXME: node ids might not correspond to positions
         self.hcg_edges = vec![0; self.num_groups as usize];
         for &Edge { source, target, .. } in self.network.edges.iter() {
-            if source < target {
-                let hcg = self.hcg(source as i32, target as i32);
-                self.hcg_edges[hcg] += 1;
-            }
+            let hcg = self.hcg(source as i32, target as i32);
+            self.hcg_edges[hcg] += 1;
         }
 
         // void hierarchical_model::set_hcg_pairs()
@@ -185,8 +183,10 @@ impl HierarchicalModel {
         self.hcg_pairs = vec![0; self.num_groups as usize];
         for source in self.network.nodes.iter() {
             for target in self.network.nodes.iter() {
-                let hcg = self.hcg(source.id as i32, target.id as i32);
-                self.hcg_pairs[hcg] += 1;
+                if source.id < target.id {
+                    let hcg = self.hcg(source.id as i32, target.id as i32);
+                    self.hcg_pairs[hcg] += 1;
+                }
             }
         }
 
