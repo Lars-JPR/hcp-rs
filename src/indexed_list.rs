@@ -1,5 +1,5 @@
 /// indexed list is a strange name for a 2d array
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct IndexedList<T> {
     data: Vec<T>,
     n_cols: usize,
@@ -78,6 +78,17 @@ where
             data: iter.flatten().cloned().collect(),
             n_cols,
         }
+    }
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for IndexedList<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error> {
+        writeln!(f, "IndexedList::from([")?;
+        for row in self.data.chunks(self.n_cols) {
+            writeln!(f, "    {:?},", row)?;
+        }
+        writeln!(f, "])")?;
+        Ok(())
     }
 }
 
