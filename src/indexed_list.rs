@@ -26,13 +26,15 @@ impl<T> IndexedList<T> {
     }
 
     pub fn remove_row(&mut self, index: usize) {
-        self.data.drain(index..(index + self.n_cols));
+        let pos = index * self.n_cols;
+        self.data.drain(pos..(pos + self.n_cols));
     }
 }
 
 impl<T: Clone> IndexedList<T> {
     pub fn insert_row(&mut self, index: usize, element: &[T]) {
-        self.data.splice(index..index, element.iter().cloned());
+        let pos = index * self.n_cols;
+        self.data.splice(pos..pos, element.iter().cloned());
     }
 
     pub fn push_row(&mut self, element: &[T]) {

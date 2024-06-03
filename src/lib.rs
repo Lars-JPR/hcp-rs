@@ -162,10 +162,10 @@ impl HierarchicalModel {
             let mut out_g = 0;
             for u in 0..self.network.nodes.len() {
                 if group_matrix[u][r] {
-                    self.nodes_in[(in_g, r)] = u as i32;
+                    self.nodes_in[(r, in_g)] = u as i32;
                     in_g += 1;
                 } else {
-                    self.nodes_out[(out_g, r)] = u as i32;
+                    self.nodes_out[(r, out_g)] = u as i32;
                     out_g += 1;
                 }
             }
