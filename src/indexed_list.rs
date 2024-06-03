@@ -78,3 +78,36 @@ where
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_iter() {
+        let v: IndexedList<i32> = [1, 2, 3, 4, 5, 6].chunks(3).collect();
+        assert_eq!(v[(0, 1)], 2);
+        assert_eq!(v[(1, 2)], 6);
+    }
+
+    #[test]
+    fn push() {
+        let mut v = IndexedList::new(3);
+        v.push_row(&[1, 2, 3]);
+        v.push_row(&[4, 5, 6]);
+        assert_eq!(v[(0, 1)], 2);
+        assert_eq!(v[(1, 2)], 6);
+    }
+    #[test]
+    fn insert() {
+        let mut v: IndexedList<i32> = [1, 2, 3, 4, 5, 6].chunks(3).collect();
+        v.insert_row(1, &[8, 8, 8]);
+        assert_eq!(v[(1, 2)], 8);
+    }
+    #[test]
+    fn remove() {
+        let mut v: IndexedList<i32> = [1, 2, 3, 4, 5, 6].chunks(3).collect();
+        v.remove_row(0);
+        assert_eq!(v[(0, 1)], 5);
+    }
+}
