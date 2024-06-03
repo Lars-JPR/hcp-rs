@@ -415,3 +415,41 @@ fn remove_bit_at(val: u64, pos: usize, num_groups: u32) -> u64 {
 
     (upper >> 1) | lower
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs::File;
+    use std::io::Read;
+    use std::path::Path;
+
+    #[test]
+    fn example() {
+        let hcp = HierarchicalModel::with_parameters(
+            &Parameters::load(File::open("examples/parameters.txt").unwrap().chain(
+                &b"initial_group_config: 9 41 25 13 73 137 11 33 17 5 65 129 3 33 33 17 17 5 5 65 65 129 129 3 3\n"[..]
+            ).chain(&b"initial_num_groups: 8\n"[..])
+            )
+            .unwrap()
+            .resolve_paths(Path::new("examples/")),
+        )
+        .unwrap();
+        assert_eq!(
+            hcp.groups,
+            [
+                9, 41, 25, 13, 73, 137, 11, 33, 17, 5, 65, 129, 3, 33, 33, 17, 17, 5, 5, 65, 65,
+                129, 129, 3, 3
+            ]
+        );
+        assert_eq!(hcp.num_groups, 8);
+        assert_eq!(hcp.group_size, [25, 4, 4, 7, 4, 4, 4, 4]);
+        assert_eq!(hcp.hcg_edges, [0, 6, 6, 21, 6, 6, 6, 6]);
+        assert_eq!(hcp.hcg_pairs, [243, 6, 6, 21, 6, 6, 6, 6]);
+        assert!(
+            (hcp.log_like - -20.2637).abs() < 0.001,
+            "{} != {}",
+            hcp.log_like,
+            -20.2637
+        );
+    }
+}
