@@ -6,10 +6,10 @@ pub struct IndexedList<T> {
 }
 
 impl<T> IndexedList<T> {
-    pub fn new() -> Self {
+    pub fn new(n_cols: usize) -> Self {
         Self {
             data: Vec::new(),
-            n_cols: 0,
+            n_cols,
         }
     }
 
