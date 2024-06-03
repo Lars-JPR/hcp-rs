@@ -29,6 +29,10 @@ impl<T> IndexedList<T> {
         let pos = index * self.n_cols;
         self.data.drain(pos..(pos + self.n_cols));
     }
+
+    pub fn clear(&mut self) {
+        self.data.clear();
+    }
 }
 
 impl<T: Clone> IndexedList<T> {

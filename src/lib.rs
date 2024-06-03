@@ -150,6 +150,11 @@ impl HierarchicalModel {
     fn init_groups(&mut self, groups: Vec<Groups>, num_groups: u32) {
         self.groups = groups;
         self.num_groups = num_groups;
+        self.group_size.clear();
+        self.hcg_edges.clear();
+        self.hcg_pairs.clear();
+        self.nodes_in.clear();
+        self.nodes_out.clear();
 
         // hierarchical_model::set_nodes_in_out()
         let group_matrix = to_group_matrix(&self.groups, self.num_groups);
