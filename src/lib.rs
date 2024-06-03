@@ -85,8 +85,8 @@ impl HierarchicalModel {
             hcg_pairs: vec![network.edges.len(), 0],
             log_like: f64::NAN,
             rng: MT19937::seed_from_u64(time::UNIX_EPOCH.elapsed().unwrap().as_secs()),
-            nodes_in: IndexedList::new(network.edges.len()),
-            nodes_out: IndexedList::new(network.edges.len()),
+            nodes_in: IndexedList::new(network.nodes.len()),
+            nodes_out: IndexedList::new(network.nodes.len()),
             network,
         }
     }
