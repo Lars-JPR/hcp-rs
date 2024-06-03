@@ -45,8 +45,12 @@ pub struct HierarchicalModel {
     num_groups: u32,
     groups: Vec<Groups>, // group assignments for each node
 
-    nodes_in: IndexedList<i32>,  // ??
-    nodes_out: IndexedList<i32>, // ??
+    /// for every group (row), list ids of nodes in group.
+    /// entries beyond the group size are invalid.
+    nodes_in: IndexedList<i32>,
+    /// for every group (row), list ids of nodes not in group.
+    /// entries beyond (number of nodes - group size) are invalid.
+    nodes_out: IndexedList<i32>,
 
     group_size: Vec<usize>,
     hcg_edges: Vec<usize>, // number of edges in each group
