@@ -232,9 +232,9 @@ impl HierarchicalModel {
     fn remove_node_from_group_by_idx(&mut self, group: usize, idx: usize) -> Move {
         let n_out = self.network.nodes.len() - self.group_size[group];
 
-        let node = self.nodes_in[(idx, group)] as usize;
-        self.nodes_in[(idx, group)] = self.nodes_in[(self.group_size[group] - 1, group)];
-        self.nodes_out[(n_out, group)] = node as i32;
+        let node = self.nodes_in[(group, idx)] as usize;
+        self.nodes_in[(group, idx)] = self.nodes_in[(group, self.group_size[group] - 1)];
+        self.nodes_out[(group, n_out)] = node as i32;
         let old_state = self.groups[node];
         self.groups[node] -= 1u64 << group;
         self.group_size[group] -= 1;
@@ -250,9 +250,9 @@ impl HierarchicalModel {
     fn add_node_to_group_by_idx(&mut self, group: usize, idx: usize) -> Move {
         let n_out = self.network.nodes.len() - self.group_size[group];
 
-        let node = self.nodes_out[(idx, group)] as usize;
-        self.nodes_out[(idx, group)] = self.nodes_out[(n_out - 1, group)];
-        self.nodes_in[(self.group_size[group], group)] = node as i32;
+        let node = self.nodes_out[(group, idx)] as usize;
+        self.nodes_out[(group, idx)] = self.nodes_out[(group, n_out - 1)];
+        self.nodes_in[(group, self.group_size[group])] = node as i32;
         let old_state = self.groups[node];
         self.groups[node] += 1u64 << group;
         self.group_size[group] += 1;
@@ -368,8 +368,8 @@ impl HierarchicalModel {
                     // TODO: can this be unified with HierarchicalModel::add_node_to_group_by_idx?
                     self.group_size[group] += 1;
                     let n_out = num_nodes - self.group_size[group];
-                    self.nodes_out[(n_out, group)] = -1;
-                    self.nodes_in[(idx, group)] = node as i32;
+                    self.nodes_out[(group, n_out)] = -1;
+                    self.nodes_in[(group, idx)] = node as i32;
                     self.groups[node] += 1u64 << group;
                 }
                 Move::RemoveGroup { group } => {
@@ -383,8 +383,8 @@ impl HierarchicalModel {
                 } => {
                     // TODO: can this be unified with HierarchicalModel::remove_node_from_group_by_idx?
                     self.group_size[group] -= 1;
-                    self.nodes_in[(self.group_size[group], group)] = -1;
-                    self.nodes_out[(idx, group)] = node as i32;
+                    self.nodes_in[(group, self.group_size[group])] = -1;
+                    self.nodes_out[(group, idx)] = node as i32;
                     self.groups[node] -= 1u64 << group;
                 }
             }
