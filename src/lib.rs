@@ -41,8 +41,8 @@ pub struct HierarchicalModel {
     network: Graph,
     max_groups: u32,
 
-    num_groups: u32,
-    groups: Vec<Groups>, // group assignments for each node
+    pub num_groups: u32,
+    pub groups: Vec<Groups>, // group assignments for each node
 
     /// for every group (row), list ids of nodes in group.
     /// entries beyond the group size are invalid.
@@ -51,10 +51,10 @@ pub struct HierarchicalModel {
     /// entries beyond (number of nodes - group size) are invalid.
     nodes_out: IndexedList<i32>,
 
-    group_size: Vec<usize>,
-    hcg_edges: Vec<usize>, // number of edges in each group
-    hcg_pairs: Vec<usize>, // number of possible edges in each group
-    log_like: f64,         // current log-likelihood
+    pub group_size: Vec<usize>,
+    pub hcg_edges: Vec<usize>, // number of edges in each group
+    pub hcg_pairs: Vec<usize>, // number of possible edges in each group
+    pub log_like: f64,         // current log-likelihood
 }
 
 fn _read_network(gml_path: &Path) -> Result<Graph, Box<dyn Error>> {
