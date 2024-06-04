@@ -11,7 +11,8 @@ fn main() -> Result<(), String> {
             .ok_or(String::from("missing parameters file"))?,
     );
     let parameters = Parameters::load(File::open(&parameters_file).map_err(|e| e.to_string())?)?
-        .resolve_paths(&parameters_file.parent().unwrap_or(Path::new(".")));
+        .resolve_paths(&parameters_file.parent().unwrap_or(Path::new(".")))
+        .fix_seed();
     println!("{:?}", parameters);
     let mut hcp = HierarchicalModel::with_parameters(&parameters).map_err(|e| e.to_string())?;
     for i in 0..parameters.max_itr {

@@ -7,7 +7,6 @@ use std::error::Error;
 use std::fs;
 use std::iter;
 use std::path::Path;
-use std::time;
 
 mod indexed_list;
 mod math;
@@ -84,7 +83,7 @@ impl HierarchicalModel {
             hcg_edges: vec![network.edges.len(), 0],
             hcg_pairs: vec![network.edges.len(), 0],
             log_like: f64::NAN,
-            rng: MT19937::seed_from_u64(time::UNIX_EPOCH.elapsed().unwrap().as_secs()),
+            rng: MT19937::seed_from_u64(0),
             nodes_in: IndexedList::new(network.nodes.len()),
             nodes_out: IndexedList::new(network.nodes.len()),
             network,
@@ -99,6 +98,7 @@ impl HierarchicalModel {
             _read_network(&params.gml_path).map_err(|e| e.to_string())?,
             params.max_num_groups,
         );
+        this.rng = MT19937::seed_from_u64(params.seed.unwrap_or(0));
         if let Some(groups) = &params.initial_group_config {
             println!("assigning random groups to nodes");
             this.init_groups(groups.clone(), params.initial_num_groups);

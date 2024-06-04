@@ -4,11 +4,13 @@ use std::io::Read;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::time;
 
 #[derive(Debug)]
 pub struct Parameters {
     pub gml_path: PathBuf,                      // path to gml file
     pub max_itr: u64,                           // maximum number of monte carlo steps
+    pub seed: Option<u64>,                      // random number generator seed
     pub max_num_groups: u32,                    // maximum number of groups
     pub initial_num_groups: u32,                // number of groups to initialize simulation with
     pub initial_group_config: Option<Vec<u64>>, // group configuration to initialize simulation with
@@ -60,6 +62,10 @@ impl Parameters {
                 ))?,
                 PathBuf::from,
             ),
+            seed: map
+                .get("seed")
+                .map(|s| u64::from_str(&s).or(Err(format!("not an integer: {}", s))))
+                .transpose()?,
         })
     }
     /// prepend base to relative paths
@@ -68,6 +74,16 @@ impl Parameters {
         Self {
             gml_path: resolve(self.gml_path),
             save_directory: resolve(self.save_directory),
+            ..self
+        }
+    }
+
+    /// if no seed has been set yet, set based on current time.
+    pub fn fix_seed(self) -> Parameters {
+        Self {
+            seed: self
+                .seed
+                .or_else(|| Some(time::UNIX_EPOCH.elapsed().unwrap().as_secs())),
             ..self
         }
     }
