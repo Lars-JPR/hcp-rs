@@ -74,7 +74,7 @@ impl HierarchicalModel {
     fn new(network: Graph, max_groups: u32) -> Self {
         // initialize a core-periphery structure with two groups, all nodes in group 0 only.
         assert!(max_groups <= 64);
-        math::init();
+        math::precompute_ln_fact(network.nodes.len().pow(2) + 1);
         Self {
             max_groups,
             num_groups: 2,
