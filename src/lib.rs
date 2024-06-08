@@ -279,6 +279,39 @@ impl HierarchicalModel {
         }
     }
 
+    /// Undo group modifications of move `m`.
+    /// Does *not* restore log likelihood or hcg values.
+    fn undo_move(&mut self, m: Move) {
+        let num_nodes = self.network.nodes.len();
+        match m {
+            Move::RemoveNodeFromGroup {
+                group, node, idx, ..
+            } => {
+                // TODO: can this be unified with HierarchicalModel::add_node_to_group_by_idx?
+                self.group_size[group] += 1;
+                let n_out = num_nodes - self.group_size[group];
+                self.nodes_out[(group, n_out)] = -1;
+                self.nodes_in[(group, idx)] = node as i32;
+                self.groups[node] += 1u64 << group;
+            }
+            Move::RemoveGroup { group } => {
+                self.add_group(group);
+            }
+            Move::AddGroup { group } => {
+                self.remove_group(group);
+            }
+            Move::AddNodeToGroup {
+                group, node, idx, ..
+            } => {
+                // TODO: can this be unified with HierarchicalModel::remove_node_from_group_by_idx?
+                self.group_size[group] -= 1;
+                self.nodes_in[(group, self.group_size[group])] = -1;
+                self.nodes_out[(group, idx)] = node as i32;
+                self.groups[node] -= 1u64 << group;
+            }
+        }
+    }
+
     fn uniform_groupsize(&mut self) -> Option<Move> {
         let num_nodes = self.network.nodes.len();
         let p_type2 = 1f64 / (2 * self.num_groups as usize * (num_nodes + 1)) as f64;
@@ -373,35 +406,7 @@ impl HierarchicalModel {
             // accept move
             self.log_like = new_loglike
         } else {
-            // revert move
-            let num_nodes = self.network.nodes.len();
-            match m {
-                Move::RemoveNodeFromGroup {
-                    group, node, idx, ..
-                } => {
-                    // TODO: can this be unified with HierarchicalModel::add_node_to_group_by_idx?
-                    self.group_size[group] += 1;
-                    let n_out = num_nodes - self.group_size[group];
-                    self.nodes_out[(group, n_out)] = -1;
-                    self.nodes_in[(group, idx)] = node as i32;
-                    self.groups[node] += 1u64 << group;
-                }
-                Move::RemoveGroup { group } => {
-                    self.add_group(group);
-                }
-                Move::AddGroup { group } => {
-                    self.remove_group(group);
-                }
-                Move::AddNodeToGroup {
-                    group, node, idx, ..
-                } => {
-                    // TODO: can this be unified with HierarchicalModel::remove_node_from_group_by_idx?
-                    self.group_size[group] -= 1;
-                    self.nodes_in[(group, self.group_size[group])] = -1;
-                    self.nodes_out[(group, idx)] = node as i32;
-                    self.groups[node] -= 1u64 << group;
-                }
-            }
+            self.undo_move(m);
             self.hcg_edges = old_hcg_edges[..self.num_groups as usize].to_owned();
             self.hcg_pairs = old_hcg_pairs[..self.num_groups as usize].to_owned();
         }
