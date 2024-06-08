@@ -93,6 +93,10 @@ fn main() -> Result<(), String> {
     println!("{:?}", parameters);
     let mut hcp = HierarchicalModel::with_parameters(&parameters).map_err(|e| e.to_string())?;
     let mut log = HcpLog::new();
+
+    println!("seed: {}", parameters.seed.unwrap_or(0));
+    println!("number of pairs: {:?}", hcp.hcg_pairs);
+    println!("number of edges: {:?}", hcp.hcg_edges);
     for i in 0..parameters.max_itr {
         hcp.get_groups();
         if i % 10000000 == 0 {
