@@ -1,12 +1,20 @@
 use gml_parser::{Edge, GMLObject, Graph};
 use indexed_list::IndexedList;
-use mt19937::MT19937;
 use parameters::Parameters;
-use rand::{Rng, SeedableRng};
 use std::error::Error;
 use std::fs;
 use std::iter;
 use std::path::Path;
+
+#[cfg(feature = "gsl_compat")]
+mod gsl_rng_compat;
+#[cfg(feature = "gsl_compat")]
+use gsl_rng_compat::MT19937;
+
+#[cfg(not(feature = "gsl_compat"))]
+use mt19937::MT19937;
+#[cfg(not(feature = "gsl_compat"))]
+use rand::{Rng, SeedableRng};
 
 mod indexed_list;
 mod math;
