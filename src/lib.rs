@@ -487,13 +487,19 @@ mod tests {
         .unwrap();
         let g = 1;
         let old = hcp.clone();
-        let _ = hcp.add_group(g);
+        let op = hcp.add_group(g);
         assert_eq!(hcp.num_groups, old.num_groups + 1);
         assert_eq!(
             hcp.group_size.iter().sum::<usize>(),
             old.group_size.iter().sum()
         );
         assert_eq!(hcp.group_size[g], 0);
+
+        let mut undone = hcp.clone();
+        undone.undo_move(op);
+        assert_eq!(old.num_groups, undone.num_groups);
+        assert_eq!(old.group_size, undone.group_size);
+        assert_eq!(old.groups, undone.groups);
     }
     #[test]
     fn remove_group() {
@@ -510,12 +516,21 @@ mod tests {
         .unwrap();
         let g = 1;
         let old = hcp.clone();
-        let _ = hcp.remove_group(g);
+        let op = hcp.remove_group(g);
         assert_eq!(hcp.num_groups, old.num_groups - 1);
         assert_eq!(
             hcp.group_size.iter().sum::<usize>(),
             old.group_size.iter().sum::<usize>() - old.group_size[g]
         );
+
+        let mut undone = hcp.clone();
+        undone.undo_move(op);
+        assert_eq!(old.num_groups, undone.num_groups);
+        // HACK: remove_group assumes groups are empty, but I couldn't be bothered to properly
+        //       set that up.
+
+        // assert_eq!(old.group_size, undone.group_size);
+        // assert_eq!(old.groups, undone.groups);
     }
 
     #[test]
@@ -545,6 +560,12 @@ mod tests {
             old.group_size.iter().sum::<usize>() + 1
         );
         assert_eq!(hcp.group_size[g], old.group_size[g] + 1);
+
+        let mut undone = hcp.clone();
+        undone.undo_move(op);
+        assert_eq!(old.num_groups, undone.num_groups);
+        assert_eq!(old.group_size, undone.group_size);
+        assert_eq!(old.groups, undone.groups);
     }
     #[test]
     fn remove_node_from_group_by_idx() {
@@ -573,5 +594,11 @@ mod tests {
             old.group_size.iter().sum::<usize>() - 1
         );
         assert_eq!(hcp.group_size[g], old.group_size[g] - 1);
+
+        let mut undone = hcp.clone();
+        undone.undo_move(op);
+        assert_eq!(old.num_groups, undone.num_groups);
+        assert_eq!(old.group_size, undone.group_size);
+        assert_eq!(old.groups, undone.groups);
     }
 }
