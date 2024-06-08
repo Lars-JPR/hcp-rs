@@ -51,6 +51,7 @@ mod tests {
         precompute_ln_fact(100);
         assert_eq!(ln_fact(0), 0.0);
         assert_close!(ln_fact(2), 0.6931);
-        assert_close!(ln_fact(10), 363.7394);
+        assert_close!(ln_fact(10), 15.1044);
+        assert_close!(ln_fact(100), 363.7394);
     }
 }
