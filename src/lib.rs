@@ -22,6 +22,7 @@ pub mod parameters;
 
 type Groups = u64; // group assignment bits
 
+#[derive(Debug, PartialEq, Eq, Clone)]
 enum Move {
     AddGroup {
         group: usize,
@@ -43,6 +44,7 @@ enum Move {
     },
 }
 
+#[derive(Clone)]
 pub struct HierarchicalModel {
     rng: MT19937,
 
@@ -464,5 +466,107 @@ mod tests {
             hcp.log_like,
             -20.2637
         );
+    }
+
+    #[test]
+    fn add_group() {
+        let mut hcp = HierarchicalModel::with_parameters(
+            &Parameters::load(
+                File::open("examples/parameters.txt")
+                    .unwrap()
+                    .chain(&b"seed: 8\n"[..]),
+            )
+            .unwrap()
+            .resolve_paths(Path::new("examples/")),
+        )
+        .unwrap();
+        let g = 1;
+        let old = hcp.clone();
+        let _ = hcp.add_group(g);
+        assert_eq!(hcp.num_groups, old.num_groups + 1);
+        assert_eq!(
+            hcp.group_size.iter().sum::<usize>(),
+            old.group_size.iter().sum()
+        );
+        assert_eq!(hcp.group_size[g], 0);
+    }
+    #[test]
+    fn remove_group() {
+        let mut hcp = HierarchicalModel::with_parameters(
+            &Parameters::load(
+                File::open("examples/parameters.txt")
+                    .unwrap()
+                    .chain(&b"initial_num_groups: 4\n"[..])
+                    .chain(&b"seed: 8\n"[..]),
+            )
+            .unwrap()
+            .resolve_paths(Path::new("examples/")),
+        )
+        .unwrap();
+        let g = 1;
+        let old = hcp.clone();
+        let _ = hcp.remove_group(g);
+        assert_eq!(hcp.num_groups, old.num_groups - 1);
+        assert_eq!(
+            hcp.group_size.iter().sum::<usize>(),
+            old.group_size.iter().sum::<usize>() - old.group_size[g]
+        );
+    }
+
+    #[test]
+    fn add_node_to_group_by_idx() {
+        let mut hcp = HierarchicalModel::with_parameters(
+            &Parameters::load(
+                File::open("examples/parameters.txt")
+                    .unwrap()
+                    .chain(&b"initial_num_groups: 4\n"[..])
+                    .chain(&b"seed: 8\n"[..]),
+            )
+            .unwrap()
+            .resolve_paths(Path::new("examples/")),
+        )
+        .unwrap();
+        let g = 1;
+        let idx = 3;
+        let old = hcp.clone();
+        let op = hcp.add_node_to_group_by_idx(g, idx);
+        assert_eq!(hcp.num_groups, old.num_groups);
+        match op {
+            Move::AddNodeToGroup { node, .. } => assert!(hcp.groups[node] & (1 << g) != 0),
+            _ => panic!("not an add_node_to_group operation"),
+        }
+        assert_eq!(
+            hcp.group_size.iter().sum::<usize>(),
+            old.group_size.iter().sum::<usize>() + 1
+        );
+        assert_eq!(hcp.group_size[g], old.group_size[g] + 1);
+    }
+    #[test]
+    fn remove_node_from_group_by_idx() {
+        let mut hcp = HierarchicalModel::with_parameters(
+            &Parameters::load(
+                File::open("examples/parameters.txt")
+                    .unwrap()
+                    .chain(&b"initial_num_groups: 4\n"[..])
+                    .chain(&b"seed: 8\n"[..]),
+            )
+            .unwrap()
+            .resolve_paths(Path::new("examples/")),
+        )
+        .unwrap();
+        let g = 1;
+        let idx = 3;
+        let old = hcp.clone();
+        let op = hcp.remove_node_from_group_by_idx(g, idx);
+        assert_eq!(hcp.num_groups, old.num_groups);
+        match op {
+            Move::RemoveNodeFromGroup { node, .. } => assert!(hcp.groups[node] & (1 << g) == 0),
+            _ => panic!("not an remove_node_from_group operation"),
+        }
+        assert_eq!(
+            hcp.group_size.iter().sum::<usize>(),
+            old.group_size.iter().sum::<usize>() - 1
+        );
+        assert_eq!(hcp.group_size[g], old.group_size[g] - 1);
     }
 }

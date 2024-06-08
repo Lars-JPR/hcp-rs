@@ -4,6 +4,7 @@ use std::ops::{Bound, RangeBounds};
 
 /// simple wrapper around GSL mt19937
 /// implementing just the parts of rand::Rng I use
+#[derive(Clone)]
 pub struct MT19937(GslRng);
 
 trait UsizeConvertible {
