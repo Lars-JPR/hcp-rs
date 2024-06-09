@@ -12,7 +12,7 @@ use std::time;
 #[derive(Debug, Default)]
 struct HcpLog {
     groups: Vec<Vec<u64>>, // called `intermediate_states` and `configs` in cpp version
-    num_groups: Vec<u32>,
+    num_groups: Vec<usize>,
     hcg_edges: Vec<Vec<usize>>,
     hcg_pairs: Vec<Vec<usize>>,
     group_size: Vec<Vec<usize>>,
@@ -25,12 +25,12 @@ impl HcpLog {
     }
 
     pub fn shapshot(&mut self, hcp: &HierarchicalModel) {
-        self.groups.push(hcp.groups.clone());
+        self.groups.push(hcp.model.groups.clone());
         self.hcg_edges.push(hcp.hcg_edges.clone());
         self.hcg_pairs.push(hcp.hcg_pairs.clone());
-        self.group_size.push(hcp.group_size.clone());
+        self.group_size.push(hcp.model.group_size.clone());
         self.log_like.push(hcp.log_like.clone());
-        self.num_groups.push(hcp.num_groups.clone());
+        self.num_groups.push(hcp.model.num_groups().clone());
     }
 
     fn dump_vec_space_separated<T: Display, W: Write>(w: &mut W, v: &Vec<T>) -> io::Result<()> {
@@ -110,7 +110,7 @@ fn main() -> Result<(), String> {
             println!("iteration: {} energy: {:.4}", i, hcp.log_like);
             println!("number of pairs: {:?}", hcp.hcg_pairs);
             println!("number of edges: {:?}", hcp.hcg_edges);
-            println!("group sizes: {:?}", hcp.group_size);
+            println!("group sizes: {:?}", hcp.model.group_size);
         }
 
         if (i > 10000000) && (i % 1500 == 0) {
