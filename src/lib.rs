@@ -402,7 +402,7 @@ impl HierarchicalModel {
         };
 
         let alpha = f64::exp(new_loglike - self.log_like); // acceptance probability
-        if alpha >= 1.0 || self.rng.gen_bool(alpha) {
+        if self.rng.gen_bool(alpha) {
             // accept move
             self.log_like = new_loglike
         } else {
