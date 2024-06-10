@@ -2,6 +2,7 @@ use crate::indexed_list::IndexedList;
 use std::fmt::Debug;
 
 pub type Groups = u64; // group assignment bits
+pub type Node = u32; // node id
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
 pub enum Move {
@@ -36,10 +37,10 @@ pub struct MultiGroupModel {
 
     /// for every group (row), list ids of nodes in group.
     /// entries beyond the group size are invalid.
-    nodes_in: IndexedList<i32>,
+    nodes_in: IndexedList<Node>,
     /// for every group (row), list ids of nodes not in group.
     /// entries beyond (number of nodes - group size) are invalid.
-    nodes_out: IndexedList<i32>,
+    nodes_out: IndexedList<Node>,
 
     pub group_size: Vec<usize>, // FIXME: pub for HcpLog
 }
@@ -94,16 +95,16 @@ impl MultiGroupModel {
         let mut nodes_out = IndexedList::new(num_nodes);
         let mut group_size = Vec::new();
         for r in 0..(num_groups as usize) {
-            nodes_in.push_row(&vec![-1; num_nodes]);
-            nodes_out.push_row(&vec![-1; num_nodes]);
+            nodes_in.push_row(&vec![Node::MAX; num_nodes]);
+            nodes_out.push_row(&vec![Node::MAX; num_nodes]);
             let mut in_g = 0;
             let mut out_g = 0;
             for u in 0..num_nodes {
                 if group_matrix[u][r] {
-                    nodes_in[(r, in_g)] = u as i32;
+                    nodes_in[(r, in_g)] = u as Node;
                     in_g += 1;
                 } else {
-                    nodes_out[(r, out_g)] = u as i32;
+                    nodes_out[(r, out_g)] = u as Node;
                     out_g += 1;
                 }
             }
@@ -133,10 +134,11 @@ impl MultiGroupModel {
     }
 
     pub fn add_group(&mut self, group: usize) -> Move {
-        self.nodes_in.insert_row(group, &vec![-1; self.num_nodes]);
+        self.nodes_in
+            .insert_row(group, &vec![Node::MAX; self.num_nodes]);
         // TODO: avoid .collect
         self.nodes_out
-            .insert_row(group, &(0..self.num_nodes as i32).collect::<Vec<_>>());
+            .insert_row(group, &(0..self.num_nodes as Node).collect::<Vec<_>>());
         self.group_size.insert(group, 0);
         self.groups = self
             .groups
@@ -167,7 +169,7 @@ impl MultiGroupModel {
 
         let node = self.nodes_in[(group, idx)] as usize;
         self.nodes_in[(group, idx)] = self.nodes_in[(group, self.group_size[group] - 1)];
-        self.nodes_out[(group, n_out)] = node as i32;
+        self.nodes_out[(group, n_out)] = node as Node;
         let old_state = self.groups[node];
         self.groups[node] -= 1u64 << group;
         self.group_size[group] -= 1;
@@ -185,7 +187,7 @@ impl MultiGroupModel {
 
         let node = self.nodes_out[(group, idx)] as usize;
         self.nodes_out[(group, idx)] = self.nodes_out[(group, n_out - 1)];
-        self.nodes_in[(group, self.group_size[group])] = node as i32;
+        self.nodes_in[(group, self.group_size[group])] = node as Node;
         let old_state = self.groups[node];
         self.groups[node] += 1u64 << group;
         self.group_size[group] += 1;
@@ -208,8 +210,8 @@ impl MultiGroupModel {
                 // TODO: can this be unified with MultiGroupModel::add_node_to_group_by_idx?
                 self.group_size[group] += 1;
                 let n_out = self.num_nodes - self.group_size[group];
-                self.nodes_out[(group, n_out)] = -1;
-                self.nodes_in[(group, idx)] = node as i32;
+                self.nodes_out[(group, n_out)] = Node::MAX;
+                self.nodes_in[(group, idx)] = node as Node;
                 self.groups[node] += 1u64 << group;
             }
             Move::RemoveGroup { group } => {
@@ -223,8 +225,8 @@ impl MultiGroupModel {
             } => {
                 // TODO: can this be unified with MultiGroupModel::remove_node_from_group_by_idx?
                 self.group_size[group] -= 1;
-                self.nodes_in[(group, self.group_size[group])] = -1;
-                self.nodes_out[(group, idx)] = node as i32;
+                self.nodes_in[(group, self.group_size[group])] = Node::MAX;
+                self.nodes_out[(group, idx)] = node as Node;
                 self.groups[node] -= 1u64 << group;
             }
         }

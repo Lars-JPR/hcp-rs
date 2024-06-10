@@ -9,7 +9,7 @@ use std::path::Path;
 mod gsl_rng_compat;
 #[cfg(feature = "gsl_compat")]
 use gsl_rng_compat::MT19937;
-use multi_group_model::{Move, MultiGroupModel};
+use multi_group_model::{Groups, Move, MultiGroupModel, Node};
 
 #[cfg(not(feature = "gsl_compat"))]
 use mt19937::MT19937;
@@ -23,9 +23,9 @@ pub mod parameters;
 
 trait HCG {
     /// Highest Common Group
-    fn hcg(&self, u: i32, v: i32) -> usize;
+    fn hcg(&self, u: Node, v: Node) -> usize;
 
-    fn hcg_node(&self, old_state: u64, u: i32) -> usize;
+    fn hcg_node(&self, old_state: Groups, u: Node) -> usize;
 }
 
 #[derive(Clone)]
@@ -52,7 +52,7 @@ fn calc_loglike(a: &Vec<usize>, b: &Vec<usize>) -> f64 {
 }
 
 impl HCG for MultiGroupModel {
-    fn hcg(&self, u: i32, v: i32) -> usize {
+    fn hcg(&self, u: Node, v: Node) -> usize {
         let group_mask = (1u64 << self.num_groups()) - 1;
         let masked_u = self.groups_of(u as usize) & group_mask;
         let masked_v = self.groups_of(v as usize) & group_mask;
@@ -68,7 +68,7 @@ impl HCG for MultiGroupModel {
         (63u64 - ((common_bits - (common_bits >> 1u64)).leading_zeros() as u64)) as usize
     }
 
-    fn hcg_node(&self, old_state: u64, u: i32) -> usize {
+    fn hcg_node(&self, old_state: Groups, u: Node) -> usize {
         let group_mask = (1u64 << self.num_groups()) - 1;
         let masked_u = old_state & group_mask;
         let masked_v = self.groups_of(u as usize) & group_mask;
@@ -128,7 +128,7 @@ impl HierarchicalModel {
         // FIXME: node ids might not correspond to positions
         let mut hcg_edges = vec![0; model.num_groups()];
         for &Edge { source, target, .. } in network.edges.iter() {
-            let hcg = model.hcg(source as i32, target as i32);
+            let hcg = model.hcg(source as Node, target as Node);
             hcg_edges[hcg] += 1;
         }
 
@@ -138,7 +138,7 @@ impl HierarchicalModel {
         for source in network.nodes.iter() {
             for target in network.nodes.iter() {
                 if source.id < target.id {
-                    let hcg = model.hcg(source.id as i32, target.id as i32);
+                    let hcg = model.hcg(source.id as Node, target.id as Node);
                     hcg_pairs[hcg] += 1;
                 }
             }
@@ -205,8 +205,8 @@ impl HierarchicalModel {
             | Move::RemoveNodeFromGroup {
                 node, old_state, ..
             } => {
-                let u = node as i32;
-                for v in 0..self.network.nodes.len() as i32 {
+                let u = node as Node;
+                for v in 0..self.network.nodes.len() as Node {
                     if v == u {
                         continue;
                     }
@@ -220,7 +220,7 @@ impl HierarchicalModel {
                     if !((source == u as i64) ^ (target == u as i64)) {
                         continue;
                     }
-                    let v = if source == u as i64 { target } else { source } as i32;
+                    let v = if source == u as i64 { target } else { source } as Node;
                     let new = HCG::hcg(&self.model, u, v);
                     let old = HCG::hcg_node(&self.model, old_state, v);
                     self.hcg_edges[old] -= 1;
