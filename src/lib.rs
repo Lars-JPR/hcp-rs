@@ -1,6 +1,6 @@
-use gml_parser::{Edge, GMLObject, Graph};
+use graph_io_gml;
 use parameters::Parameters;
-use std::error::Error;
+use petgraph::{graph::NodeIndex, visit::EdgeRef, Graph};
 use std::fs;
 use std::iter;
 use std::path::Path;
@@ -21,6 +21,8 @@ mod math;
 mod multi_group_model;
 pub mod parameters;
 
+type Network = Graph<(), ()>;
+
 trait HCG {
     /// Highest Common Group
     fn hcg(&self, u: Node, v: Node) -> usize;
@@ -32,17 +34,19 @@ trait HCG {
 pub struct HierarchicalModel {
     rng: MT19937,
 
-    pub network: Graph,
+    pub network: Network,
     pub model: MultiGroupModel,
     pub hcg_edges: Vec<usize>, // number of edges in each group
     pub hcg_pairs: Vec<usize>, // number of possible edges in each group
     pub log_like: f64,         // current log-likelihood
 }
 
-fn _read_network(gml_path: &Path) -> Result<Graph, Box<dyn Error>> {
-    Ok(Graph::from_gml(GMLObject::from_str(&fs::read_to_string(
-        gml_path,
-    )?)?)?)
+fn _read_network(gml_path: &Path) -> Result<Network, String> {
+    Ok(graph_io_gml::parse_gml(
+        &fs::read_to_string(gml_path).map_err(|e| e.to_string())?,
+        &|_| Some(()),
+        &|_| Some(()),
+    )?)
 }
 
 fn calc_loglike(a: &Vec<usize>, b: &Vec<usize>) -> f64 {
@@ -91,7 +95,7 @@ impl HierarchicalModel {
             return Err(String::from("number of groups cannot exceed 64"));
         }
         let network = _read_network(&params.gml_path).map_err(|e| e.to_string())?;
-        math::precompute_ln_fact(&network.nodes.len().pow(2) + 1);
+        math::precompute_ln_fact(&network.node_count().pow(2) + 1);
         let mut rng = MT19937::seed_from_u64(params.seed.unwrap_or(0));
         let groups = match &params.initial_group_config {
             Some(groups) => {
@@ -101,7 +105,7 @@ impl HierarchicalModel {
             _ => {
                 println!("assigning random groups to nodes");
                 let max = 1u64 << (params.initial_num_groups - 1);
-                (0..network.nodes.len())
+                (0..network.node_count())
                     .map(|_| (rng.gen_range(0..max) << 1) + 1)
                     .collect()
             }
@@ -123,24 +127,22 @@ impl HierarchicalModel {
     }
 
     /// initialize group edge count caches hcp_edges, hcp_pairs
-    fn init_hcg_props(network: &Graph, model: &MultiGroupModel) -> (Vec<usize>, Vec<usize>) {
+    fn init_hcg_props(network: &Network, model: &MultiGroupModel) -> (Vec<usize>, Vec<usize>) {
         // void hierarchical_model::set_hcg_edges()
-        // FIXME: node ids might not correspond to positions
         let mut hcg_edges = vec![0; model.num_groups()];
-        for &Edge { source, target, .. } in network.edges.iter() {
-            let hcg = model.hcg(source as Node, target as Node);
+        for edge in network.edge_references() {
+            let u = edge.source().index() as Node;
+            let v = edge.target().index() as Node;
+            let hcg = model.hcg(u, v);
             hcg_edges[hcg] += 1;
         }
 
         // void hierarchical_model::set_hcg_pairs()
-        // FIXME: node ids might not correspond to positions
         let mut hcg_pairs = vec![0; model.num_groups()];
-        for source in network.nodes.iter() {
-            for target in network.nodes.iter() {
-                if source.id < target.id {
-                    let hcg = model.hcg(source.id as Node, target.id as Node);
-                    hcg_pairs[hcg] += 1;
-                }
+        for u in 0..network.node_count() as Node {
+            for v in u + 1..network.node_count() as Node {
+                let hcg = model.hcg(u, v);
+                hcg_pairs[hcg] += 1;
             }
         }
         (hcg_edges, hcg_pairs)
@@ -206,7 +208,7 @@ impl HierarchicalModel {
                 node, old_state, ..
             } => {
                 let u = node as Node;
-                for v in 0..self.network.nodes.len() as Node {
+                for v in 0..self.network.node_count() as Node {
                     if v == u {
                         continue;
                     }
@@ -215,12 +217,11 @@ impl HierarchicalModel {
                     self.hcg_pairs[old] -= 1;
                     self.hcg_pairs[new] += 1;
                 }
-                for &Edge { source, target, .. } in self.network.edges.iter() {
-                    // TODO: use different graph lib with more efficient neighbour list
-                    if !((source == u as i64) ^ (target == u as i64)) {
-                        continue;
-                    }
-                    let v = if source == u as i64 { target } else { source } as Node;
+                for neighbor in self
+                    .network
+                    .neighbors_undirected(NodeIndex::new(u as usize))
+                {
+                    let v = neighbor.index() as u32;
                     let new = HCG::hcg(&self.model, u, v);
                     let old = HCG::hcg_node(&self.model, old_state, v);
                     self.hcg_edges[old] -= 1;

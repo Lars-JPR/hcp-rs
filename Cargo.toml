@@ -8,7 +8,8 @@ default = ["gsl_compat"]
 gsl_compat = ["dep:GSL"]
 
 [dependencies]
-gml_parser = "0.1.1"
+graph-io-gml = "0.3"
+petgraph = "0.5"
 GSL = { version = "7.0", optional = true }
 mt19937 = "2.0.1"
 rand = "0.8.5"
